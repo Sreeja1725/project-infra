@@ -240,7 +240,26 @@ func figFromData(data PlotData, isDuringRelease bool, shapeYamlFile string) *gro
 			log.Fatal(err)
 		}
 
-		fig.Layout.Shapes = releaseData.LineShapes
+		shapes := make([]interface{}, len(releaseData.LineShapes))
+		for i, shape := range releaseData.LineShapes {
+			shapes[i] = map[string]interface{}{
+				"type":     shape.Type,
+				"x0":       shape.X0,
+				"x1":       shape.X1,
+				"y0":       shape.Y0,
+				"y1":       shape.Y1,
+				"yref":     shape.Yref,
+				"editable": shape.Editable,
+				"line": map[string]interface{}{
+					"color": shape.Line.Color,
+					"width": shape.Line.Width,
+					"dash":  shape.Line.Dash,
+				},
+				"label": shape.Label,
+			}
+		}
+
+		fig.Layout.Shapes = shapes
 	}
 
 	return fig
