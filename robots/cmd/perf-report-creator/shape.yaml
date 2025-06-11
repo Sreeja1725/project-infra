@@ -1,4 +1,4 @@
-releaseVersion: "v1-5"
+releaseVersion: "v1-6"
 sinceDate: "2024-01-01"
 lineShapes:
   - type: line
