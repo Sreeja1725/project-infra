@@ -40,7 +40,7 @@ type weeklyGraphOpts struct {
 	plotlyHTML       bool
 	isDuringRelease  bool
 	since            string
-	shapeYamlFile    string
+	releaseConfig    string
 }
 
 func resultsFlagOpts(subcommands []string) resultOpts {
@@ -79,11 +79,11 @@ func weeklyGraphFlagOpts(subcommands []string) weeklyGraphOpts {
 	fs := flag.NewFlagSet("weekly-graph", flag.ExitOnError)
 	fs.StringVar(&w.metricList, "metrics-list", string(ResultTypeVMICreationToRunningP95), "comma separated list of metrics to be plotted")
 	fs.BoolVar(&w.isDuringRelease, "is-during-release", false, "boolean for selecting if the graph is plotted during a release")
-	fs.StringVar(&w.shapeYamlFile, "shape-yaml-file", "./robots/cmd/perf-report-creator/shape.yaml", "the file containing the shape data for the release")
 	fs.StringVar(&w.resource, "resource", "vmi", "resource for which the graph will be plotted")
 	fs.StringVar(&w.weeklyReportsDir, "weekly-reports-dir", "output/weekly", "the output directory from which weekly json data will be read")
 	fs.BoolVar(&w.plotlyHTML, "plotly-html", true, "boolean for selecting what kind of graph will be plotted")
 	fs.StringVar(&w.since, "since", "", "Specify the date (format: yyyy-mm-dd)")
+	fs.StringVar(&w.releaseConfig, "release-config", "./robots/cmd/perf-report-creator/shape.yaml", "Path to release configuration file (contains shape.yaml)")
 	err := fs.Parse(subcommands)
 	if err != nil {
 		fmt.Printf("error parsing flags: %+v\n", err)

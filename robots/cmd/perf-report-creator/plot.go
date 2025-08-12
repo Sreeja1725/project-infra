@@ -52,10 +52,10 @@ type LineShape struct {
 	Label    map[string]string `yaml:"label"`
 }
 
-type PlotDataDuringRelease struct {
-	ReleaseVersion string      `yaml:"releaseVersion"`
-	SinceDate      string      `yaml:"sinceDate"`
-	LineShapes     []LineShape `yaml:"lineShapes"`
+type ReleaseConfig struct {
+	ReleaseVersion string       `yaml:"releaseVersion"`
+	SinceDate      string       `yaml:"sinceDate"`
+	LineShapes     []*LineShape `yaml:"lineShapes"`
 }
 
 func gatherPlotData(basePath string, resource string, metric ResultType, since *time.Time) ([]Curve, error) {
@@ -200,7 +200,7 @@ func drawStaticGraph(filePath string, data PlotData) error {
 	return p.Save(30*vg.Centimeter, 15*vg.Centimeter, filePath)
 }
 
-func figFromData(data PlotData, isDuringRelease bool, shapeYamlFile string) *grob.Fig {
+func figFromData(data PlotData, isDuringRelease bool, lineShapes []*LineShape) *grob.Fig {
 	fig := &grob.Fig{
 		Data: grob.Traces{
 			&grob.Scatter{
@@ -228,21 +228,10 @@ func figFromData(data PlotData, isDuringRelease bool, shapeYamlFile string) *gro
 		},
 	}
 
-	if isDuringRelease {
-		yamlData, err := os.ReadFile(shapeYamlFile)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		var releaseData PlotDataDuringRelease
-		err = yaml.Unmarshal(yamlData, &releaseData)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		shapes := make([]interface{}, len(releaseData.LineShapes))
-		for i, shape := range releaseData.LineShapes {
-			shapes[i] = map[string]interface{}{
+	if isDuringRelease && len(lineShapes) > 0 {
+		shapes := make([]interface{}, 0, len(lineShapes))
+		for _, shape := range lineShapes {
+			shapes = append(shapes, map[string]interface{}{
 				"type":     shape.Type,
 				"x0":       shape.X0,
 				"x1":       shape.X1,
@@ -256,7 +245,7 @@ func figFromData(data PlotData, isDuringRelease bool, shapeYamlFile string) *gro
 					"dash":  shape.Line.Dash,
 				},
 				"label": shape.Label,
-			}
+			})
 		}
 
 		fig.Layout.Shapes = shapes
@@ -287,9 +276,28 @@ func plotWeeklyGraph(opts weeklyGraphOpts) error {
 	var errs []error
 	var figs []*grob.Fig
 	metrics := strings.Split(opts.metricList, ",")
-	since, err := time.Parse("2006-01-02", opts.since)
-	if err != nil {
-		return err
+
+	var (
+		since      time.Time
+		err        error
+		lineShapes []*LineShape
+	)
+
+	if opts.isDuringRelease {
+		config, err := parseReleaseConfig(opts.releaseConfig)
+		if err != nil {
+			return fmt.Errorf("failed to parse release config: %v", err)
+		}
+		since, err = time.Parse("2006-01-02", config.SinceDate)
+		if err != nil {
+			return fmt.Errorf("failed to parse sinceDate from release config: %v", err)
+		}
+		lineShapes = config.LineShapes
+	} else {
+		since, err = time.Parse("2006-01-02", opts.since)
+		if err != nil {
+			return fmt.Errorf("failed to parse sinceDate from since flag: %v", err)
+		}
 	}
 
 	for _, metric := range metrics {
@@ -318,7 +326,7 @@ func plotWeeklyGraph(opts weeklyGraphOpts) error {
 			XAxisLabel: "Start date of week",
 			YAxisLabel: "Metric Value",
 			Curves:     data,
-		}, opts.isDuringRelease, opts.shapeYamlFile))
+		}, opts.isDuringRelease, lineShapes))
 	}
 
 	htmlFileName := "index.html"
@@ -354,6 +362,32 @@ func figToBuffer(figs []*grob.Fig) *bytes.Buffer {
 	buf := &bytes.Buffer{}
 	tmpl.Execute(buf, figBytesList)
 	return buf
+}
+
+func parseReleaseConfig(configPath string) (ReleaseConfig, error) {
+	if configPath == "" {
+		return ReleaseConfig{}, fmt.Errorf("no release config path provided")
+	}
+
+	yamlData, err := os.ReadFile(configPath)
+	if err != nil {
+		return ReleaseConfig{}, fmt.Errorf("failed to read release config file %s: %v", configPath, err)
+	}
+
+	var config ReleaseConfig
+	err = yaml.Unmarshal(yamlData, &config)
+	if err != nil {
+		return ReleaseConfig{}, fmt.Errorf("failed to parse release config YAML: %v", err)
+	}
+
+	if config.ReleaseVersion == "" {
+		return ReleaseConfig{}, fmt.Errorf("releaseVersion is required in release config")
+	}
+	if config.SinceDate == "" {
+		return ReleaseConfig{}, fmt.Errorf("sinceDate is required in release config")
+	}
+
+	return config, nil
 }
 
 var baseHtml = `

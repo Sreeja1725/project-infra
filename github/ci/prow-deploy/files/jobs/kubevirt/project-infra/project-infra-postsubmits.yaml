@@ -907,7 +907,6 @@ postsubmits:
             go build -o /usr/local/bin/perf-report-creator ./robots/cmd/perf-report-creator/...
 
             RELEASE_VERSION=$(grep "releaseVersion:" robots/cmd/perf-report-creator/shape.yaml | awk '{print $2}' | tr -d '"')
-            SINCE_DATE=$(grep "sinceDate:" robots/cmd/perf-report-creator/shape.yaml | awk '{print $2}' | tr -d '"')
             BRANCH="add-$RELEASE_VERSION"
             RELEASE_DIR="release-$RELEASE_VERSION"
 
@@ -919,7 +918,7 @@ postsubmits:
             )
             CI_PERF_REPO_DIR=$(cd ../ci-performance-benchmarks && pwd)
 
-            robots/cmd/perf-report-creator/release-graph.sh "$CI_PERF_REPO_DIR" "$SINCE_DATE"
+            robots/cmd/perf-report-creator/release-graph.sh "$CI_PERF_REPO_DIR"
 
             cd "$CI_PERF_REPO_DIR"
             mkdir -p "$CI_PERF_REPO_DIR"/$RELEASE_DIR/periodic-kubevirt-e2e-k8s-sig-performance
