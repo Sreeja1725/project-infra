@@ -2466,3 +2466,66 @@ presubmits:
           privileged: true
       nodeSelector:
         type: bare-metal-external
+  - always_run: true
+    annotations:
+      fork-per-release: "true"
+      testgrid-dashboards: kubevirt-presubmits
+    cluster: prow-workloads
+    decorate: true
+    decoration_config:
+      grace_period: 5m0s
+      timeout: 4h0m0s
+    labels:
+      preset-bazel-cache: "true"
+      preset-docker-mirror-proxy: "true"
+      preset-podman-in-container-enabled: "true"
+      preset-podman-shared-images: "true"
+      preset-shared-images: "true"
+    max_concurrency: 11
+    name: pull-kubevirt-e2e-k8s-1.36-sig-compute-dra
+    skip_branches:
+    - release-\d+\.\d+
+    spec:
+      containers:
+      - command:
+        - /usr/local/bin/runner.sh
+        - /bin/sh
+        - -c
+        - |
+          VFIO_DIR="./kubevirtci/cluster-up/cluster/kind-1.35-vfio-gpu"
+          export FAKE_PCI_DEVICES FAKE_IOMMU
+          bash "$VFIO_DIR/setup-host-vfio-pci.sh"
+          
+          make cluster-up
+          
+          make cluster-sync
+
+          make functest
+        env:
+        - name: KUBEVIRT_E2E_FOCUS
+          value: "DRA"
+        - name: KUBEVIRT_QUARANTINE
+          value: "true"
+        - name: KUBEVIRT_WITH_ETC_IN_MEMORY
+          value: "true"
+        - name: KUBEVIRT_WITH_ETC_CAPACITY
+          value: 1G
+        - name: KUBEVIRT_PROVIDER
+          value: kind-1.35-vfio-gpu
+        - name: FEATURE_GATES
+          value: GPUsWithDRA,HostDevicesWithDRA,HostDevices
+        - name: FAKE_PCI_DEVICES
+          value: "8"
+        - name: DRA_DRIVER_PROFILE
+          value: vfio-gpu
+        - name: DRA_DRIVER_NAME
+          value: vfio-gpu.example.com
+        image: quay.io/kubevirtci/bootstrap:v20260417-7427ea2
+        name: ""
+        resources:
+          requests:
+            memory: 52Gi
+        securityContext:
+          privileged: true
+      nodeSelector:
+        type: bare-metal-external
