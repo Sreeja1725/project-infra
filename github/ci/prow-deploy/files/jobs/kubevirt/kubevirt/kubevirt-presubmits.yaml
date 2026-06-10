@@ -2492,7 +2492,51 @@ presubmits:
         - /bin/sh
         - -c
         - |
-          VFIO_DIR="./kubevirtci/cluster-up/cluster/kind-1.35-vfio-gpu"
+          KVER="$(uname -r)"
+          echo "Host kernel: ${KVER}"
+          KVER_MAJOR="${KVER%%.*}"
+          KERNEL_BUILD="/lib/modules/${KVER}/build"
+          KERNEL_SRC="/usr/src/kernels/${KVER}"
+
+          if [ "${KVER_MAJOR}" -lt 6 ]; then
+            echo "ERROR: fake-iommu requires host kernel >= 6.0 (running ${KVER})"
+            exit 1
+          fi
+
+          if [ ! -d "${KERNEL_BUILD}" ]; then
+            if [ -d "${KERNEL_SRC}" ]; then
+              echo "Binding ${KERNEL_BUILD} -> ${KERNEL_SRC}"
+              mkdir -p "${KERNEL_BUILD}"
+              mount --bind "${KERNEL_SRC}" "${KERNEL_BUILD}"
+            else
+              echo "Kernel headers not found at ${KERNEL_BUILD}; installing kernel-devel-${KVER} on host..."
+              nsenter -t 1 -m -p -- bash -ce \
+                "command -v dnf >/dev/null && dnf install -y kernel-devel-${KVER} || yum install -y kernel-devel-${KVER}"
+            fi
+          fi
+
+          if [ ! -d "${KERNEL_BUILD}" ] && [ -d "${KERNEL_SRC}" ]; then
+            mkdir -p "${KERNEL_BUILD}"
+            mount --bind "${KERNEL_SRC}" "${KERNEL_BUILD}"
+          fi
+
+          if [ ! -d "${KERNEL_BUILD}" ]; then
+            echo "ERROR: kernel headers not found at ${KERNEL_BUILD} after install attempt"
+            echo "Install on the bare-metal node: dnf install -y kernel-devel-${KVER}"
+            exit 1
+          fi
+          echo "Kernel headers ready at ${KERNEL_BUILD}"
+
+          if [ ! -f /usr/include/gelf.h ]; then
+            echo "Installing elfutils-libelf-devel in bootstrap container..."
+            dnf install -y elfutils-libelf-devel
+          fi
+
+          git clone https://github.com/Sreeja1725/kubevirtci.git
+          cd kubevirtci
+          git checkout add-vfio-gpu-provider
+          
+          VFIO_DIR="cluster-up/cluster/kind-1.35-vfio-gpu"
           export FAKE_PCI_DEVICES FAKE_IOMMU
           bash "$VFIO_DIR/setup-host-vfio-pci.sh"
           
@@ -2516,6 +2560,8 @@ presubmits:
           value: GPUsWithDRA,HostDevicesWithDRA,HostDevices
         - name: FAKE_PCI_DEVICES
           value: "8"
+        - name: FAKE_IOMMU
+          value: "true"
         - name: DRA_DRIVER_PROFILE
           value: vfio-gpu
         - name: DRA_DRIVER_NAME
